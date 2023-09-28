@@ -1,39 +1,55 @@
-import librosa.display
-import matplotlib.pyplot as plt
 import numpy as np
-import librosa
-from scipy.interpolate import interp1d
+import torch
+import torch.nn as nn
+import torch.optim as optim
 
-with open("C:/Users/Mario/Desktop/Audios/audios.txt" , 'r') as file:
-    content = file.read()
-    words = content.split()
-#test
-for af in words:
-    # Load an audio file
-    audio_file = "C:/Users/Mario/Desktop/Audios/" + af
-    y, sr = librosa.load(audio_file)
+#load data
 
-    D = librosa.stft(y)
+dataset = np.loadtxt('filename', delimeter = ',')
 
-    spectrogram = librosa.amplitude_to_db(abs(D), ref = np.max)
+#input values
+x = dataset[:, 0:8]
+#output values
+y = dataset[:, 8]
 
-    timeList = [0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4]
-    frequencyList = []
-    for t in timeList:
-        time_index = librosa.time_to_frames(t, sr=sr)
-        frequencies = librosa.fft_frequencies(sr=sr)
-        frequency_at_time = frequencies[np.argmax(spectrogram[:, time_index])]
-        frequencyList.append(frequency_at_time)
+x = torch.tensor(x, dtype = torch.float32)
+y = torch.tensor(y, dtype = torch.float32).reshape(-1,1)
 
-    print (af)
-    print(frequencyList)
-    print()
-    spectro = librosa.feature.melspectrogram(y=y, sr=sr)
-    spectrogram_db = librosa.power_to_db(spectro, ref=np.max)
-    plt.figure(figsize=(10, 6))
-    librosa.display.specshow(spectrogram_db, x_axis='time', y_axis='mel', sr=sr, cmap='viridis')
-    plt.colorbar(format='%+2.0f dB')
-    plt.title('Mel-frequency Spectrogram' + af)
-    plt.show()
-    inpu = input("continue?")
+#create model MOFDIFY LAYERS AS NEEDED
+
+model = nn.Sequential(nn.Linear(8, 12),
+                      nn.ReLU(),
+                      nn.Linear(12, 8),
+                      nn.ReLU(),
+                      nn.Linear(8, 1),
+                      nn.Sigmoid())
+
+#create loss and optimization functions
+loss_fn = nn.CrossEntropyLoss
+optimizer = optim.Adam(model.parameters(), lr = 0.001)
+
+#establish target batches and epocs
+n_epochs = 100
+batch_size = 10
+
+for epoch in range(n_epochs):
+    for i in range(0, len(x), batch_size):
+        Xbatch = x[i:i + batch_size]
+        y_pred = model(Xbatch)
+        ybatch = y[i:i + batch_size]
+        loss = loss_fn(y_pred, ybatch)
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+    print(f'Finished epoch {epoch}, latest loss {loss}')
+
+# compute accuracy (no_grad is optional)
+with torch.no_grad():
+    y_pred = model(x)
+
+accuracy = (y_pred.round() == y).float().mean()
+print(f"Accuracy {accuracy}")
+
+
+
 
